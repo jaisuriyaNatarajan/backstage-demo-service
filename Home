@@ -1,0 +1,80 @@
+export 'useVisitedEntities' was not found in '@backstage/plugin-home'
+``  
+That’s because **`useVisitedEntities`** doesn’t exist in `@backstage/plugin-home`. The plugin-home exports only prebuilt widgets like `HomePageRecentlyVisited` and `HomePageTopVisited`. It doesn’t expose the raw hook for us to fetch the data directly.
+
+---
+
+### ✅ Fix: Use `visitsApiRef` Instead
+We can directly call the API using `visitsApiRef` instead of trying to use a non-existent hook.
+
+Here’s the updated **`HomePage.tsx`**:
+
+```tsx
+import React, { useEffect, useState } from 'react';
+import { Grid, Card, CardContent, Typography, Button, Divider } from '@material-ui/core';
+import { useApi } from '@backstage/core-plugin-api';
+import { visitsApiRef } from '@backstage/plugin-home';
+import { EntityRefLink } from '@backstage/plugin-catalog-react';
+
+const CustomVisitedWidget = ({ title, entities }: { title: string; entities: any[] }) => (
+  <Card style={{ borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', marginBottom: 20 }}>
+    <CardContent>
+      <Typography
+        variant="h6"
+        color="textPrimary"
+        gutterBottom
+        style={{ fontWeight: 600, fontSize: '1.1rem' }}
+      >
+        {title}
+      </Typography>
+      <Divider style={{ marginBottom: 10 }} />
+      {entities.slice(0, 5).map((entity, index) => (
+        <div key={index} style={{ marginBottom: 10 }}>
+          <Typography variant="subtitle1" style={{ fontWeight: 500 }}>
+            <EntityRefLink entityRef={entity.entityRef} />
+          </Typography>
+          {entity.description && (
+            <Typography variant="body2" color="textSecondary">
+              {entity.description}
+            </Typography>
+          )}
+        </div>
+      ))}
+      <Button
+        size="small"
+        color="primary"
+        style={{ marginTop: 10, textTransform: 'none', fontWeight: 500 }}
+      >
+        View More
+      </Button>
+    </CardContent>
+  </Card>
+);
+
+export const HomePage = () => {
+  const visitsApi = useApi(visitsApiRef);
+  const [recentEntities, setRecentEntities] = useState<any[]>([]);
+  const [topEntities, setTopEntities] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchVisitedEntities = async () => {
+      const recent = await visitsApi.getRecentVisits();
+      const top = await visitsApi.getTopVisited();
+      setRecentEntities(recent);
+      setTopEntities(top);
+    };
+
+    fetchVisitedEntities();
+  }, [visitsApi]);
+
+  return (
+    <Grid container spacing={3}>
+      <Grid item xs={12} md={6}>
+        <CustomVisitedWidget title="Recent Visited" entities={recentEntities} />
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <CustomVisitedWidget title="Top Visited" entities={topEntities} />
+      </Grid>
+    </Grid>
+  );
+};
