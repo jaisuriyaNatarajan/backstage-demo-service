@@ -1,0 +1,179 @@
+import { PropsWithChildren, useState } from 'react';
+import styled from 'styled-components';
+import { Link } from 'react-router-dom';
+import HomeIcon from '@material-ui/icons/Home';
+import CategoryIcon from '@material-ui/icons/Category';
+import PeopleIcon from '@material-ui/icons/People';
+import ExtensionIcon from '@material-ui/icons/Extension';
+import LibraryBooksIcon from '@material-ui/icons/LibraryBooks';
+import AddCircleOutlineIcon from '@material-ui/icons/AddCircleOutline';
+import SettingsIcon from '@material-ui/icons/Settings';
+import Avatar from '@material-ui/core/Avatar';
+import { SidebarSearchModal } from '@backstage/plugin-search';
+
+const SidebarContainer = styled.div`
+  width: 250px;
+  background-color: #f7f7fa;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-right: 1px solid #e0e0e0;
+`;
+
+const LogoWrapper = styled.div`
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #333;
+  padding: 20px;
+`;
+
+const SearchBoxWrapper = styled.div`
+  width: calc(100% - 40px);
+  margin: 0 auto 20px auto;
+`;
+
+const SearchBox = styled.input<{ isFocused: boolean }>`
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 2px solid
+    ${(props) => (props.isFocused ? '#7e57c2' : '#ccc')}; /* Violet on focus */
+  outline: none;
+  font-size: 14px;
+  transition: border 0.2s ease;
+
+  &:focus {
+    border-color: #7e57c2;
+  }
+`;
+
+const NavList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const NavItem = styled(Link)`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  text-decoration: none;
+  color: #333;
+  font-size: 14px;
+  border-radius: 8px;
+
+  &:hover {
+    background-color: #eaeaea;
+  }
+`;
+
+const SidebarFooter = styled.div`
+  padding: 20px;
+  border-top: 1px solid #e0e0e0;
+`;
+
+const ProfileContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+`;
+
+export const Root = ({ children }: PropsWithChildren<{}>) => {
+  const [isSearchFocused, setSearchFocused] = useState(false);
+  const [isSearchModalOpen, setSearchModalOpen] = useState(false);
+
+  const handleSearchFocus = () => {
+    setSearchFocused(true);
+    setSearchModalOpen(true); // open modal on focus
+  };
+
+  const handleSearchBlur = () => {
+    setSearchFocused(false);
+    // Don't close modal here if you want it to stay open until user dismisses
+  };
+
+  return (
+    <div style={{ display: 'flex' }}>
+      <SidebarContainer>
+        <div>
+          {/* Logo */}
+          <LogoWrapper>Backstage</LogoWrapper>
+
+          {/* Search */}
+          <SearchBoxWrapper>
+            <SearchBox
+              type="text"
+              placeholder="Search"
+              isFocused={isSearchFocused}
+              onFocus={handleSearchFocus}
+              onBlur={handleSearchBlur}
+            />
+            {isSearchModalOpen && (
+              <SidebarSearchModal
+                onClose={() => setSearchModalOpen(false)}
+              />
+            )}
+          </SearchBoxWrapper>
+
+          {/* Navigation */}
+          <NavList>
+            <NavItem to="/">
+              <HomeIcon fontSize="small" />
+              Home
+            </NavItem>
+            <NavItem to="/catalog">
+              <CategoryIcon fontSize="small" />
+              Catalog
+            </NavItem>
+            <NavItem to="/groups">
+              <PeopleIcon fontSize="small" />
+              My Groups
+            </NavItem>
+            <NavItem to="/api-docs">
+              <ExtensionIcon fontSize="small" />
+              APIs
+            </NavItem>
+            <NavItem to="/docs">
+              <LibraryBooksIcon fontSize="small" />
+              Docs
+            </NavItem>
+            <NavItem to="/create">
+              <AddCircleOutlineIcon fontSize="small" />
+              Create
+            </NavItem>
+          </NavList>
+        </div>
+
+        {/* Footer */}
+        <SidebarFooter>
+          <NavItem to="/settings">
+            <SettingsIcon fontSize="small" />
+            Settings
+          </NavItem>
+
+          <ProfileContainer>
+            <Avatar
+              alt="Olivia Rhye"
+              src="https://i.pravatar.cc/40"
+              style={{ width: 40, height: 40 }}
+            />
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: 500 }}>
+                Olivia Rhye
+              </div>
+              <div style={{ fontSize: '12px', color: '#888' }}>
+                olivia@untitledui.com
+              </div>
+            </div>
+          </ProfileContainer>
+        </SidebarFooter>
+      </SidebarContainer>
+
+      {/* Main content */}
+      <div style={{ flex: 1 }}>{children}</div>
+    </div>
+  );
+};
