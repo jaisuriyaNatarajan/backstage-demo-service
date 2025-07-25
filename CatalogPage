@@ -1,0 +1,97 @@
+// plugins/catalog/src/components/CatalogPage.tsx
+import React from 'react';
+import styled from 'styled-components';
+import {
+  EntityListProvider,
+  EntitySearchBar,
+  EntityKindFilter,
+  EntityOwnerFilter,
+  EntityLifecycleFilter,
+  EntityTagFilter,
+  useEntityList,
+} from '@backstage/plugin-catalog-react';
+import { CustomCatalogTable } from './CustomCatalogTable';
+
+const PageWrapper = styled.div`
+  background: #f9fafb;
+  min-height: 100vh;
+`;
+
+const Header = styled.div`
+  background-color: #9f3ee4;
+  color: white;
+  padding: 1.5rem 2rem;
+  font-size: 20px;
+  font-weight: bold;
+`;
+
+const SectionTitle = styled.h2`
+  margin: 0;
+  font-size: 24px;
+`;
+
+const SubText = styled.p`
+  margin: 4px 0 0 0;
+  font-size: 14px;
+  color: #e0d7f5;
+`;
+
+const FilterWrapper = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 32px;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+`;
+
+const FilterBox = styled.div`
+  .MuiInputBase-root {
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    height: 42px;
+    padding: 0 12px;
+    font-size: 14px;
+  }
+
+  .MuiInputBase-input {
+    padding: 10px 6px;
+  }
+
+  .MuiSvgIcon-root {
+    color: #9ca3af;
+  }
+`;
+
+const CatalogContent = () => {
+  const { entities } = useEntityList();
+  return (
+    <>
+      <FilterWrapper>
+        <FilterBox><EntitySearchBar placeholder="Stripe" /></FilterBox>
+        <FilterBox><EntityKindFilter initialFilter="" /></FilterBox>
+        <FilterBox><EntityOwnerFilter initialFilter="" /></FilterBox>
+        <FilterBox><EntityLifecycleFilter initialFilter="" /></FilterBox>
+        <FilterBox><EntityTagFilter initialFilter="" /></FilterBox>
+      </FilterWrapper>
+
+      <CustomCatalogTable data={entities} />
+    </>
+  );
+};
+
+export const CatalogPage = () => (
+  <EntityListProvider>
+    <PageWrapper>
+      <Header>
+        <SectionTitle>All Components</SectionTitle>
+        <SubText>
+          View, manage, and organize all your contacts in one place. Easily search, filter, or update your audience.
+        </SubText>
+      </Header>
+
+      <CatalogContent />
+    </PageWrapper>
+  </EntityListProvider>
+);
