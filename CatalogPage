@@ -1,0 +1,99 @@
+// plugins/catalog/src/components/CatalogPage.tsx
+import React from 'react';
+import styled from 'styled-components';
+import {
+  EntityListProvider,
+  EntitySearchBar,
+  EntityKindPicker,
+  EntityOwnerPicker,
+  EntityLifecyclePicker,
+  EntityTagPicker,
+  useEntityList,
+} from '@backstage/plugin-catalog-react';
+import { CustomCatalogTable } from './CustomCatalogTable';
+
+const PageWrapper = styled.div`
+  background: #f9fafb;
+  min-height: 100vh;
+`;
+
+const Header = styled.div`
+  background-color: #9f3ee4;
+  color: white;
+  padding: 24px 32px 20px;
+`;
+
+const Title = styled.h2`
+  font-size: 22px;
+  margin: 0;
+`;
+
+const Subtitle = styled.p`
+  font-size: 14px;
+  color: #e0d7f5;
+  margin: 4px 0 0;
+`;
+
+const FiltersRow = styled.div`
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 16px 32px;
+  background: #fff;
+  align-items: center;
+`;
+
+const FilterItem = styled.div`
+  min-width: 180px;
+  flex: 1;
+  max-width: 220px;
+
+  .MuiInputBase-root {
+    height: 42px;
+    border-radius: 10px;
+    background: white;
+    border: 1px solid #d1d5db;
+    padding: 0 8px;
+    font-size: 14px;
+  }
+
+  .MuiInputBase-input {
+    padding: 10px 6px;
+  }
+
+  .MuiSvgIcon-root {
+    color: #9ca3af;
+  }
+`;
+
+const CatalogContent = () => {
+  const { entities } = useEntityList();
+  return (
+    <>
+      <FiltersRow>
+        <FilterItem><EntitySearchBar placeholder="Search" /></FilterItem>
+        <FilterItem><EntityKindPicker initialFilter="" /></FilterItem>
+        <FilterItem><EntityOwnerPicker initialFilter="" /></FilterItem>
+        <FilterItem><EntityLifecyclePicker initialFilter="" /></FilterItem>
+        <FilterItem><EntityTagPicker initialFilter="" /></FilterItem>
+      </FiltersRow>
+
+      <CustomCatalogTable data={entities} />
+    </>
+  );
+};
+
+export const CatalogPage = () => (
+  <EntityListProvider>
+    <PageWrapper>
+      <Header>
+        <Title>All Components</Title>
+        <Subtitle>
+          View, manage, and organize all your contacts in one place. Easily search, filter, or update your audience.
+        </Subtitle>
+      </Header>
+
+      <CatalogContent />
+    </PageWrapper>
+  </EntityListProvider>
+);
