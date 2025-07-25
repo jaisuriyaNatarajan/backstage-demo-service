@@ -1,0 +1,92 @@
+// plugins/catalog/src/components/CustomCatalogTable.tsx
+import React from 'react';
+import styled from 'styled-components';
+import { IconButton, Tooltip } from '@material-ui/core';
+import { Edit, Delete } from '@material-ui/icons';
+
+const TableWrapper = styled.div`
+  margin: 0 32px 2rem 32px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: white;
+  border: 1px solid #e5e7eb;
+`;
+
+const Table = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Inter', sans-serif;
+`;
+
+const Thead = styled.thead`
+  background: #f9fafb;
+  text-align: left;
+`;
+
+const Th = styled.th`
+  padding: 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+`;
+
+const Td = styled.td`
+  padding: 16px;
+  border-top: 1px solid #f3f4f6;
+  font-size: 14px;
+  color: #111827;
+`;
+
+const Tag = styled.span`
+  background-color: #f3e8ff;
+  color: #7c3aed;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+`;
+
+const Actions = styled.div`
+  display: flex;
+  gap: 10px;
+`;
+
+export const CustomCatalogTable = ({ data }: { data: any[] }) => {
+  return (
+    <TableWrapper>
+      <Table>
+        <Thead>
+          <tr>
+            <Th>Contact List Name</Th>
+            <Th>No. of Contact</Th>
+            <Th>Created At</Th>
+            <Th>Updated At</Th>
+            <Th>Tags</Th>
+            <Th></Th>
+          </tr>
+        </Thead>
+        <tbody>
+          {data.map((item, i) => (
+            <tr key={i}>
+              <Td>{item.metadata?.name}</Td>
+              <Td>{item.spec?.contactCount ?? 90}</Td>
+              <Td>{new Date(item.metadata?.createdAt || Date.now()).toLocaleDateString()}</Td>
+              <Td>{new Date(item.metadata?.updatedAt || Date.now()).toLocaleDateString()}</Td>
+              <Td><Tag>Design</Tag></Td>
+              <Td>
+                <Actions>
+                  <Tooltip title="Edit">
+                    <IconButton><Edit fontSize="small" /></IconButton>
+                  </Tooltip>
+                  <Tooltip title="Delete">
+                    <IconButton><Delete fontSize="small" /></IconButton>
+                  </Tooltip>
+                </Actions>
+              </Td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+    </TableWrapper>
+  );
+};
