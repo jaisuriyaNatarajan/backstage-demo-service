@@ -1,0 +1,195 @@
+import styled from 'styled-components';
+import { IconButton, Tooltip } from '@material-ui/core';
+import EditIcon from '@material-ui/icons/Edit';
+import DeleteIcon from '@material-ui/icons/Delete';
+import StarIcon from '@material-ui/icons/Star';
+import StarBorderIcon from '@material-ui/icons/StarBorder';
+import { Link } from 'react-router-dom';
+import { useRouteRef } from '@backstage/core-plugin-api';
+import {
+  entityRouteRef,
+  entityRouteParams,
+  useStarredEntitiesApi,
+} from '@backstage/plugin-catalog-react';
+import { stringifyEntityRef, Entity } from '@backstage/catalog-model';
+
+const TableWrapper = styled.div`
+  margin: 0 32px 40px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: white;
+  border: 1px solid #e5e7eb;
+`;
+
+const Table = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Inter', sans-serif;
+
+  tbody tr:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+
+  tbody tr:nth-child(odd) {
+    background-color: #ffffff;
+  }
+`;
+
+const Thead = styled.thead`
+  background: #f9fafb;
+  text-align: left;
+`;
+
+const Th = styled.th`
+  padding: 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+`;
+
+const Td = styled.td`
+  padding: 16px;
+  border-top: 1px solid #f3f4f6;
+  font-size: 14px;
+  color: #777777;
+  vertical-align: middle;
+`;
+
+const Tag = styled.span`
+  background-color: #f3e8ff;
+  color: #8560c6;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+`;
+
+const Actions = styled.div`
+  display: flex;
+  gap: 8px;
+  align-items: center;
+`;
+
+type Props = {
+  data: Entity[];
+};
+
+export const CustomCatalogTable = ({ data }: Props) => {
+  const entityRoute = useRouteRef(entityRouteRef);
+  const starredEntitiesApi = useStarredEntitiesApi();
+
+  return (
+    <TableWrapper>
+      <Table>
+        <Thead>
+          <tr>
+            <Th>NAME</Th>
+            <Th>SYSTEM</Th>
+            <Th>OWNER</Th>
+            <Th>TYPE</Th>
+            <Th>LIFECYCLE</Th>
+            <Th>DESCRIPTION</Th>
+            <Th>TAGS</Th>
+            <Th>ACTIONS</Th>
+            <Th style={{ textAlign: 'center' }}>⭐</Th>
+          </tr>
+        </Thead>
+        <tbody>
+          {data.map((item, i) => {
+            let path = '#';
+            try {
+              const params = entityRouteParams(item);
+              if (entityRoute) {
+                path = entityRoute(params);
+              }
+            } catch (e) {
+              console.warn('Invalid entityRouteParams or routeRef:', e);
+            }
+
+            const entityRef = stringifyEntityRef(item);
+            const isStarred = starredEntitiesApi.isStarredEntity(entityRef);
+
+            const toggleStar = () => {
+              starredEntitiesApi.toggleStarred(entityRef);
+            };
+
+            return (
+              <tr key={i}>
+                <Td style={{ color: '#1d41b8' }}>
+                  <Link to={path}>{item.metadata?.name || ''}</Link>
+                </Td>
+                <Td>{item.spec?.system || ''}</Td>
+                <Td
+                  style={{
+                    maxWidth: '150px',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  <Tooltip title={item.spec?.owner || ''} arrow>
+                    <span>{item.spec?.owner || ''}</span>
+                  </Tooltip>
+                </Td>
+                <Td>{item.spec?.type || ''}</Td>
+                <Td>{item.spec?.lifecycle || ''}</Td>
+                <Td>
+                  <Tooltip title={item.metadata?.description || ''} arrow>
+                    <span>
+                      {item.metadata?.description
+                        ? item.metadata.description.slice(
+                            0,
+                            item.metadata.description.length / 6,
+                          ) + '...'
+                        : ''}
+                    </span>
+                  </Tooltip>
+                </Td>
+                <Td>
+                  <Tag>Design</Tag>
+                </Td>
+                <Td>
+                  <Actions>
+                    <Tooltip title="Edit">
+                      <IconButton size="small" style={{ padding: 4 }}>
+                        <a
+                          href={
+                            item?.metadata?.annotations?.[
+                              'backstage.io/edit-url'
+                            ]
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <EditIcon fontSize="small" />
+                        </a>
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Delete">
+                      <IconButton size="small" style={{ padding: 4 }}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Actions>
+                </Td>
+
+                {/* ⭐ STAR BUTTON */}
+                <Td style={{ textAlign: 'center' }}>
+                  <Tooltip title={isStarred ? 'Remove from favorites' : 'Add to favorites'}>
+                    <IconButton onClick={toggleStar} size="small">
+                      {isStarred ? (
+                        <StarIcon style={{ color: '#f59e0b' }} />
+                      ) : (
+                        <StarBorderIcon />
+                      )}
+                    </IconButton>
+                  </Tooltip>
+                </Td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </Table>
+    </TableWrapper>
+  );
+};
