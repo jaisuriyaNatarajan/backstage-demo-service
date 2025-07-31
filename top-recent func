@@ -1,0 +1,179 @@
+import { EntityListProvider } from '@backstage/plugin-catalog-react';
+import styled from 'styled-components';
+import { useRecentAndTopVisited } from '../../helper/useRecentAndTopVisited';
+import { useState } from 'react';
+import { Chip } from '@material-ui/core';
+
+const Container = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+  padding: 20px;
+`;
+
+const WidgetBox = styled.div<{ expanded?: boolean }>`
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: ${({ expanded }) => (expanded ? '400px' : '250px')};
+`;
+
+const Header = styled.div`
+  background-color: #f5efff;
+  padding: 10px 15px;
+  font-weight: 600;
+  font-size: 16px;
+  color: black;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+`;
+
+const Content = styled.div`
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 15px;
+  overflow-y: auto;
+  flex: 1;
+
+  p {
+    margin: 0 0 8px;
+  }
+
+  span {
+    font-weight: 600;
+    color: #333;
+  }
+`;
+
+const ButtonContainer = styled.div`
+  display: flex;
+  justify-content: flex-start;
+  margin-top: auto;
+`;
+
+const ViewMoreButton = styled.button`
+  background: #fff;
+  color: #7e2db5;
+  border: 1px solid #7e2db5;
+  padding: 6px 14px;
+  font-size: 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease-in;
+
+  &:hover {
+    background: #7e2db5;
+    color: #fff;
+  }
+`;
+
+type WidgetProps = {
+  expanded: boolean;
+  toggle: () => void;
+};
+
+const TopVisited = ({ expanded, toggle }: WidgetProps) => {
+  const { top: entities } = useRecentAndTopVisited();
+
+  const validEntities = entities?.filter(
+    e => e.entityRef && e.entityRef !== 'undefined',
+  );
+
+  if (!validEntities || validEntities.length === 0) return null;
+
+  const topEntities = expanded ? validEntities : validEntities.slice(0, 3);
+
+  return (
+    <WidgetBox expanded={expanded}>
+      <Header>Top Visited</Header>
+      <Content>
+        <div>
+          {topEntities.map(({ entityRef }) => {
+            const pluginName = (entityRef ?? '')
+              .split('/')
+              .filter(x => x && x !== 'undefined')
+              .pop();
+            return (
+              <p key={pluginName}>
+                <span>{pluginName}</span>
+              </p>
+            );
+          })}
+        </div>
+        <ButtonContainer>
+          <ViewMoreButton onClick={toggle}>
+            {expanded ? 'View less' : 'View more'}
+          </ViewMoreButton>
+        </ButtonContainer>
+      </Content>
+    </WidgetBox>
+  );
+};
+
+const RecentVisited = ({ expanded, toggle }: WidgetProps) => {
+  const { recent: entities } = useRecentAndTopVisited();
+
+  const recentEntities = expanded ? entities : entities.slice(-3);
+
+  if (!recentEntities || recentEntities.length === 0) return null;
+
+  return (
+    <WidgetBox expanded={expanded}>
+      <Header>Recent Visited</Header>
+      <Content>
+        <div>
+          {recentEntities.map(entity => (
+            <p key={entity?.id}>
+              <span>
+                <span>{entity?.name}</span>
+                <Chip
+                  label={entity?.entityRef?.split(':')[0] || 'other'}
+                  color="primary"
+                  size="small"
+                  style={{
+                    marginLeft: 10,
+                    backgroundColor: '#f3e8ff',
+                    color: '#a855f7',
+                    fontWeight: 500,
+                    fontSize: 12,
+                  }}
+                />
+              </span>
+              <br />
+            </p>
+          ))}
+        </div>
+        <ButtonContainer>
+          <ViewMoreButton onClick={toggle}>
+            {expanded ? 'View less' : 'View more'}
+          </ViewMoreButton>
+        </ButtonContainer>
+      </Content>
+    </WidgetBox>
+  );
+};
+
+const CustomHomeWidgets = () => {
+  const [isTopExpanded, setIsTopExpanded] = useState(false);
+  const [isRecentExpanded, setIsRecentExpanded] = useState(false);
+
+  const toggleTop = () => setIsTopExpanded(prev => !prev);
+  const toggleRecent = () => setIsRecentExpanded(prev => !prev);
+
+  return (
+    <EntityListProvider>
+      <Container>
+        <TopVisited expanded={isTopExpanded} toggle={toggleTop} />
+        <RecentVisited expanded={isRecentExpanded} toggle={toggleRecent} />
+      </Container>
+    </EntityListProvider>
+  );
+};
+
+export default CustomHomeWidgets;
