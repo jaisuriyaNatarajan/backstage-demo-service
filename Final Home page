@@ -1,0 +1,168 @@
+// HomePage.js
+import React, { useState } from 'react';
+import {
+  PageContainer,
+  WelcomeText,
+  SearchWrapper,
+  SearchBar,
+  NotificationIcon,
+  CardGrid,
+  StarredEntitiesWrapper,
+  SectionTitle,
+  EntityRow,
+  EntityCard,
+  EntityAvatar,
+  EntityDetails,
+  EntityName,
+  EntityType,
+  ViewMore,
+} from './styles';
+import { FiBell } from 'react-icons/fi';
+import { FaFire, FaClock } from 'react-icons/fa';
+import { useSearch } from '@backstage/plugin-search-react';
+import { useNavigate } from 'react-router-dom';
+import { useRecentAndTopVisited } from '../../helper/useRecentAndTopVisited';
+import { useStarredEntities, catalogApiRef, entityRouteRef, entityRouteParams } from '@backstage/plugin-catalog-react';
+import { useApi, useRouteRef } from '@backstage/core-plugin-api';
+import { Avatar, Chip } from '@material-ui/core';
+import { Entity } from '@backstage/catalog-model';
+
+const HomePage = () => {
+  const { term, setTerm } = useSearch();
+  const navigate = useNavigate();
+  const { top: topEntitiesRaw, recent: recentEntitiesRaw } = useRecentAndTopVisited();
+  const [topExpanded, setTopExpanded] = useState(false);
+  const [recentExpanded, setRecentExpanded] = useState(false);
+  const { starredEntities } = useStarredEntities();
+  const catalogApi = useApi(catalogApiRef);
+  const entityRoute = useRouteRef(entityRouteRef);
+  const [resolvedEntities, setResolvedEntities] = useState<Entity[]>([]);
+
+  React.useEffect(() => {
+    const fetchEntities = async () => {
+      const fetched: Entity[] = [];
+      for (const ref of starredEntities) {
+        const entity = await catalogApi.getEntityByRef(ref);
+        if (entity) fetched.push(entity);
+      }
+      setResolvedEntities(fetched);
+    };
+    fetchEntities();
+  }, [starredEntities, catalogApi]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    navigate(`/search?query=${encodeURIComponent(term)}`);
+  };
+
+  const topEntities = topExpanded ? topEntitiesRaw : topEntitiesRaw.slice(0, 3);
+  const recentEntities = recentExpanded ? recentEntitiesRaw : recentEntitiesRaw.slice(0, 3);
+
+  return (
+    <PageContainer>
+      <WelcomeText>Welcome, Jaisuriya!</WelcomeText>
+
+      <form onSubmit={handleSubmit}>
+        <SearchWrapper>
+          <SearchBar
+            type="text"
+            placeholder="Search services, plugins..."
+            value={term}
+            onChange={e => setTerm(e.target.value)}
+          />
+          <NotificationIcon>
+            <FiBell />
+          </NotificationIcon>
+        </SearchWrapper>
+      </form>
+
+      <CardGrid>
+        <div>
+          <SectionTitle><FaFire color="#ff6b57" /> Top Visited</SectionTitle>
+          {topEntities.length === 0 ? (
+            <>
+              <img
+                src="https://img.icons8.com/fluency-systems-filled/96/folder-invoices.png"
+                alt="folder"
+                style={{ width: 80, margin: '16px auto', display: 'block' }}
+              />
+              <p style={{ fontSize: 14, color: '#555', textAlign: 'center' }}>
+                You haven't visited anything yet. Start exploring the catalog to see visited items here.
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
+                <a
+                  href="/catalog"
+                  style={{
+                    padding: '8px 16px',
+                    background: '#3478f6',
+                    borderRadius: 8,
+                    color: '#fff',
+                    fontWeight: '500',
+                    textDecoration: 'none',
+                    fontSize: 14,
+                  }}
+                >
+                  Browse Catalog
+                </a>
+              </div>
+            </>
+          ) : (
+            <div>
+              {topEntities.map(({ entityRef }, i) => (
+                <p key={i}>{entityRef?.split('/').pop()}</p>
+              ))}
+              <ViewMore onClick={() => setTopExpanded(p => !p)}>
+                {topExpanded ? 'View less' : 'View more'}
+              </ViewMore>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <SectionTitle><FaClock /> Recent Visited</SectionTitle>
+          {recentEntities.length === 0 ? (
+            <p style={{ fontSize: 14, color: '#555' }}>No recent plugins used.</p>
+          ) : (
+            <div>
+              {recentEntities.map(({ name, entityRef }, i) => (
+                <p key={i}>
+                  {name} <Chip label={entityRef?.split(':')[0] || 'component'} size="small" />
+                </p>
+              ))}
+              <ViewMore onClick={() => setRecentExpanded(p => !p)}>
+                {recentExpanded ? 'View less' : 'View more'}
+              </ViewMore>
+            </div>
+          )}
+        </div>
+      </CardGrid>
+
+      <StarredEntitiesWrapper>
+        <SectionTitle>Your Starred Entities</SectionTitle>
+        <EntityRow>
+          {resolvedEntities.length === 0 ? (
+            <p style={{ fontSize: 14, color: '#555' }}>
+              Click the star beside an entity name to add it to this list!
+            </p>
+          ) : (
+            resolvedEntities.map(entity => {
+              const name = entity.metadata.name;
+              const kind = entity.kind;
+              return (
+                <EntityCard key={entity.metadata.uid}>
+                  <EntityAvatar bg="#475569">{name.charAt(0).toUpperCase()}</EntityAvatar>
+                  <EntityDetails>
+                    <EntityName>{name}</EntityName>
+                    <EntityType>{kind}</EntityType>
+                  </EntityDetails>
+                </EntityCard>
+              );
+            })
+          )}
+        </EntityRow>
+      </StarredEntitiesWrapper>
+    </PageContainer>
+  );
+};
+
+export default HomePage;
