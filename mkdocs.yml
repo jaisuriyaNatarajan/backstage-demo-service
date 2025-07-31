@@ -1,4 +1,0 @@
-site_name: Hello Backstage
-nav:
-  - Home: index.md
-docs_dir: docs
