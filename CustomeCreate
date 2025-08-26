@@ -1,0 +1,137 @@
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { useApi, catalogApiRef, identityApiRef, starredEntitiesApiRef } from '@backstage/core-plugin-api';
+import { Content, Header, Page } from '@backstage/core-components';
+import { Entity } from '@backstage/catalog-model';
+import { parseEntityRef } from '@backstage/catalog-model';
+import { useNavigate } from 'react-router-dom';
+import Grid from '@mui/material/Grid';
+
+// --- your card from earlier message ---
+import TemplateCard from './TemplateCard'; // keep the same file you already have
+
+/** Picks values for the card from a Template entity */
+function mapTemplateToCard(entity: Entity) {
+  const { metadata, spec } = entity;
+  const namespace = metadata.namespace ?? 'default';
+  const name = metadata.name ?? 'template';
+  return {
+    tag: (spec as any)?.type ?? 'template',
+    name: metadata.title ?? name,
+    section: 'Title',
+    descriptionTop: (spec as any)?.description ?? '',
+    descriptionBottom: (spec as any)?.description ?? '',
+    repoText:
+      metadata.annotations?.['github.com/project-slug'] ||
+      metadata.annotations?.['backstage.io/source-location'] ||
+      'template',
+    ref: `${namespace}/${name}`,
+    entity,
+  };
+}
+
+export default function CustomCreatePage() {
+  const catalogApi = useApi(catalogApiRef);
+  const identityApi = useApi(identityApiRef);
+  const starredApi = useApi(starredEntitiesApiRef);
+  const navigate = useNavigate();
+
+  const [templates, setTemplates] = useState<Entity[]>([]);
+  const [starredRefs, setStarredRefs] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+
+  // load templates
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setLoading(true);
+        const { items } = await catalogApi.getEntities({
+          filter: { kind: 'Template' },
+          // add more filters if you want to narrow by type/owner, etc.
+        });
+        if (mounted) setTemplates(items ?? []);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [catalogApi]);
+
+  // load starred
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      await identityApi.getBackstageIdentity(); // ensure identity is ready
+      const starred = await starredApi.getStarredEntities();
+      const set = new Set(starred.map(s => s.entityRef));
+      if (mounted) setStarredRefs(set);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [starredApi, identityApi]);
+
+  const toggleStar = useCallback(
+    async (entity: Entity) => {
+      const ref = `${entity.kind}:${parseEntityRef(entity).name}`.toLowerCase() // simple ref
+        .replace(/^template:/, 'template:'); // stay consistent
+      if (starredRefs.has(ref)) {
+        await starredApi.unstar({ entityRef: ref });
+        const next = new Set(starredRefs); next.delete(ref); setStarredRefs(next);
+      } else {
+        await starredApi.star({ entityRef: ref });
+        const next = new Set(starredRefs); next.add(ref); setStarredRefs(next);
+      }
+    },
+    [starredApi, starredRefs],
+  );
+
+  const cards = useMemo(() => templates.map(mapTemplateToCard), [templates]);
+
+  return (
+    <Page themeId="tool">
+      <Header title="Create a new component" subtitle="Create new software components using standard templates in your organization" />
+      <Content>
+        {/* No filters/search: just the grid */}
+        <Grid container spacing={3}>
+          {cards.map(c => {
+            const entity = c.entity;
+            const ns = entity.metadata.namespace ?? 'default';
+            const name = entity.metadata.name!;
+            const infoRoute = `/create/templates/${ns}/${name}`; // built-in details page
+
+            // is starred?
+            const entityRef = `template:${name}`.toLowerCase();
+            const isStarred = starredRefs.has(entityRef);
+
+            return (
+              <Grid item xs={12} md={6} key={`${ns}/${name}`}>
+                <TemplateCard
+                  tag={c.tag}
+                  name={c.name}
+                  section={c.section}
+                  descriptionTop={c.descriptionTop}
+                  descriptionBottom={c.descriptionBottom}
+                  repoText={c.repoText}
+                  // icons
+                  onStar={() => toggleStar(entity)}
+                  onInfo={() => navigate(infoRoute)}
+                  // choose -> navigate to scaffolder flow for that template
+                  onChoose={() => navigate(infoRoute)}
+                />
+              </Grid>
+            );
+          })}
+
+          {!loading && cards.length === 0 && (
+            <Grid item xs={12}>
+              <div style={{ opacity: 0.7 }}>No templates found.</div>
+            </Grid>
+          )}
+        </Grid>
+      </Content>
+    </Page>
+  );
+}
