@@ -1,0 +1,494 @@
+// components/CustomCreatePage.tsx
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import {
+  Box,
+  Grid,
+  Button,
+  CircularProgress,
+  TextField,
+  Checkbox,
+  FormControlLabel,
+  Chip,
+  Divider,
+  MenuItem,
+  Select,
+  InputLabel,
+  FormControl,
+  Tooltip,
+  IconButton,
+  Typography,
+} from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import { Content, Header, Page } from '@backstage/core-components';
+import { useApi, useRouteRef } from '@backstage/core-plugin-api';
+import { Entity, stringifyEntityRef } from '@backstage/catalog-model';
+import {
+  catalogApiRef,
+  useStarredEntities,
+} from '@backstage/plugin-catalog-react';
+import { scaffolderPlugin } from '@backstage/plugin-scaffolder';
+
+// Lucide icons (no extra dependency needed beyond `lucide-react`)
+import { Filter, X, Star as StarIcon, Search as SearchIcon } from 'lucide-react';
+
+import TemplateCard from './cards/TemplateCard';
+
+// ---------- helpers ----------
+type CardVM = {
+  tag: string; // spec.type
+  name: string; // metadata.title || name
+  section: string;
+  descriptionTop: string;
+  descriptionBottom: string;
+  repoText: string; // owner or repo
+  entity: Entity;
+};
+
+function mapTemplateToCard(entity: Entity): CardVM {
+  const { metadata, spec } = entity as any;
+  const name = metadata.name ?? 'template';
+
+  return {
+    tag: spec?.type ?? 'template',
+    name: metadata?.title ?? name,
+    section: 'Title',
+    descriptionTop: spec?.description ?? '',
+    descriptionBottom: spec?.description ?? '',
+    repoText:
+      metadata?.annotations?.['github.com/project-slug'] ??
+      metadata?.annotations?.['backstage.io/source-location'] ??
+      spec?.owner ??
+      'template',
+    entity,
+  };
+}
+
+function getEntityOwner(e: Entity): string {
+  return (
+    ((e.spec as any)?.owner ??
+      e.metadata?.annotations?.['backstage.io/owner'] ??
+      'unknown') as string
+  );
+}
+
+function getEntityTags(e: Entity): string[] {
+  const t1 = ((e.metadata as any)?.tags ?? []) as string[];
+  const t2 = ((e.spec as any)?.tags ?? []) as string[];
+  const set = new Set([...(t1 || []), ...(t2 || [])].map(String));
+  return Array.from(set);
+}
+
+function getEntityType(e: Entity): string {
+  return String((e.spec as any)?.type ?? 'template');
+}
+
+// ---------- page ----------
+export default function CustomCreatePage() {
+  const catalogApi = useApi(catalogApiRef);
+  const navigate = useNavigate();
+  const toSelected = useRouteRef(scaffolderPlugin.routes.selectedTemplate);
+  const { isStarredEntity, toggleStarredEntity } = useStarredEntities();
+
+  const [templates, setTemplates] = useState<Entity[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
+
+  // Filters state
+  const [q, setQ] = useState(''); // search
+  const [starredOnly, setStarredOnly] = useState(false);
+  const [owner, setOwner] = useState<'all' | string>('all');
+  const [type, setType] = useState<'all' | string>('all');
+  const [activeTags, setActiveTags] = useState<Set<string>>(new Set());
+
+  // Sidebar behaviour
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [hovering, setHovering] = useState(false);
+  const [pinned, setPinned] = useState(false);
+
+  // Load templates
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setLoading(true);
+        const { items } = await catalogApi.getEntities({
+          filter: { kind: 'Template' },
+        });
+        if (mounted) setTemplates(items ?? []);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [catalogApi]);
+
+  // Derived filter options
+  const allOwners = useMemo(() => {
+    const s = new Set<string>();
+    templates.forEach(t => s.add(getEntityOwner(t)));
+    return Array.from(s).sort();
+  }, [templates]);
+
+  const allTypes = useMemo(() => {
+    const s = new Set<string>();
+    templates.forEach(t => s.add(getEntityType(t)));
+    return Array.from(s).sort();
+  }, [templates]);
+
+  const allTags = useMemo(() => {
+    const s = new Set<string>();
+    templates.forEach(t => getEntityTags(t).forEach(tag => s.add(tag)));
+    return Array.from(s).sort();
+  }, [templates]);
+
+  // Cards
+  const cards: CardVM[] = useMemo(
+    () => templates.map(mapTemplateToCard),
+    [templates],
+  );
+
+  // Apply filters
+  const filteredCards = useMemo(() => {
+    const qLower = q.trim().toLowerCase();
+    return cards.filter(card => {
+      const e = card.entity;
+
+      if (starredOnly) {
+        const ref = stringifyEntityRef(e);
+        if (!isStarredEntity(ref)) return false;
+      }
+      if (owner !== 'all' && getEntityOwner(e) !== owner) return false;
+      if (type !== 'all' && getEntityType(e) !== type) return false;
+
+      if (activeTags.size > 0) {
+        const tags = new Set(getEntityTags(e));
+        for (const t of activeTags) if (!tags.has(t)) return false;
+      }
+
+      if (qLower) {
+        const hay = [
+          card.name,
+          card.descriptionTop,
+          card.descriptionBottom,
+          getEntityType(e),
+          getEntityOwner(e),
+          ...getEntityTags(e),
+        ]
+          .join(' ')
+          .toLowerCase();
+        if (!hay.includes(qLower)) return false;
+      }
+      return true;
+    });
+  }, [cards, q, starredOnly, owner, type, activeTags, isStarredEntity]);
+
+  const cardsToDisplay = useMemo(() => {
+    if (isExpanded) return filteredCards;
+    return filteredCards.slice(0, 4);
+  }, [filteredCards, isExpanded]);
+
+  const toggleTag = useCallback((t: string) => {
+    setActiveTags(prev => {
+      const next = new Set(prev);
+      next.has(t) ? next.delete(t) : next.add(t);
+      return next;
+    });
+  }, []);
+
+  // Rail hover behaviour
+  const openOnHover = () => {
+    setHovering(true);
+    setSidebarOpen(true);
+  };
+  const closeOnLeave = () => {
+    setHovering(false);
+    if (!pinned) setSidebarOpen(false);
+  };
+
+  const togglePinned = () => {
+    const next = !pinned;
+    setPinned(next);
+    if (!next && !hovering) setSidebarOpen(false);
+    if (next) setSidebarOpen(true);
+  };
+
+  return (
+    <Page themeId="tool">
+      <Header
+        title="Create a new component"
+        subtitle="Create new software components using standard templates in your organization"
+      />
+      <Content>
+        {loading ? (
+          <Box sx={{ textAlign: 'center', mt: 6 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <Box sx={{ display: 'flex', gap: 2, position: 'relative' }}>
+            {/* ---------- Collapsible Sidebar (rail + panel) ---------- */}
+            <Box
+              onMouseEnter={openOnHover}
+              onMouseLeave={closeOnLeave}
+              sx={{
+                position: 'relative',
+                flexShrink: 0,
+                transition: 'width 320ms cubic-bezier(.2,.8,.2,1)',
+                width: sidebarOpen ? 280 : 56, // rail width when closed
+              }}
+            >
+              {/* Rail background */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  inset: 0,
+                  borderRadius: 2,
+                  background:
+                    'linear-gradient(180deg, rgba(99,102,241,0.08), rgba(99,102,241,0.02))',
+                  boxShadow: sidebarOpen
+                    ? '0 10px 30px rgba(17, 24, 39, 0.12)'
+                    : 'none',
+                  border: '1px solid rgba(99,102,241,0.15)',
+                  backdropFilter: 'blur(6px)',
+                }}
+              />
+
+              {/* Rail actions (top-left) */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: 12,
+                  left: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  zIndex: 2,
+                }}
+              >
+                <Tooltip title={sidebarOpen ? 'Hide filters' : 'Show filters'}>
+                  <IconButton
+                    size="small"
+                    onClick={() => setSidebarOpen(o => !o)}
+                    sx={{
+                      bgcolor: 'white',
+                      boxShadow:
+                        '0 6px 14px rgba(0,0,0,0.08), 0 3px 6px rgba(0,0,0,0.06)',
+                      '&:hover': { bgcolor: 'white' },
+                    }}
+                  >
+                    {sidebarOpen ? <X size={18} /> : <Filter size={18} />}
+                  </IconButton>
+                </Tooltip>
+
+                {sidebarOpen && (
+                  <Tooltip title={pinned ? 'Unpin' : 'Pin'}>
+                    <IconButton
+                      size="small"
+                      onClick={togglePinned}
+                      sx={{
+                        bgcolor: 'white',
+                        boxShadow:
+                          '0 6px 14px rgba(0,0,0,0.08), 0 3px 6px rgba(0,0,0,0.06)',
+                        '&:hover': { bgcolor: 'white' },
+                      }}
+                    >
+                      <StarIcon
+                        size={18}
+                        style={{ color: pinned ? '#f59e0b' : 'rgba(0,0,0,0.54)' }}
+                      />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </Box>
+
+              {/* Sliding panel */}
+              <Box
+                sx={{
+                  position: 'relative',
+                  zIndex: 1,
+                  height: '100%',
+                  px: sidebarOpen ? 2 : 0,
+                  // 🔧 EXACT top padding to keep content below the icon row
+                  pt: '120px',
+                  overflow: 'hidden',
+                }}
+              >
+                {sidebarOpen && (
+                  <Box sx={{ pb: 2 }}>
+                    {/* Search */}
+                    <Box
+                      sx={{
+                        mb: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        bgcolor: 'white',
+                        borderRadius: 2,
+                        px: 1,
+                        py: 0.5,
+                        boxShadow:
+                          '0 8px 24px rgba(17,24,39,.08), 0 4px 12px rgba(17,24,39,.06)',
+                        border: '1px solid rgba(0,0,0,0.06)',
+                      }}
+                    >
+                      <SearchIcon size={18} style={{ opacity: 0.6 }} />
+                      <TextField
+                        fullWidth
+                        size="small"
+                        variant="standard"
+                        placeholder="Search templates"
+                        value={q}
+                        onChange={e => setQ(e.target.value)}
+                        InputProps={{ disableUnderline: true }}
+                      />
+                    </Box>
+
+                    {/* Starred */}
+                    <FormControlLabel
+                      sx={{ mb: 1 }}
+                      control={
+                        <Checkbox
+                          checked={starredOnly}
+                          onChange={e => setStarredOnly(e.target.checked)}
+                        />
+                      }
+                      label="Starred only"
+                    />
+
+                    <Divider sx={{ my: 2 }} />
+
+                    {/* Owner */}
+                    <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                      <InputLabel id="owner-label">Owner</InputLabel>
+                      <Select
+                        labelId="owner-label"
+                        value={owner}
+                        label="Owner"
+                        onChange={e => setOwner(e.target.value as 'all' | string)}
+                      >
+                        <MenuItem value="all">All</MenuItem>
+                        {allOwners.map(o => (
+                          <MenuItem key={o} value={o}>
+                            {o}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+
+                    {/* Category / Type */}
+                    <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                      <InputLabel id="type-label">Category</InputLabel>
+                      <Select
+                        labelId="type-label"
+                        value={type}
+                        label="Category"
+                        onChange={e => setType(e.target.value as 'all' | string)}
+                      >
+                        <MenuItem value="all">All</MenuItem>
+                        {allTypes.map(t => (
+                          <MenuItem key={t} value={t}>
+                            {t}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+
+                    {/* Tags */}
+                    <Typography
+                      variant="caption"
+                      sx={{ fontWeight: 700, color: 'text.secondary' }}
+                    >
+                      Tags
+                    </Typography>
+                    <Box sx={{ mt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {allTags.length === 0 && (
+                        <Box sx={{ color: '#777', fontSize: 12 }}>No tags</Box>
+                      )}
+                      {allTags.map(t => {
+                        const active = activeTags.has(t);
+                        return (
+                          <Tooltip key={t} title={active ? 'Remove' : 'Add'}>
+                            <Chip
+                              label={t}
+                              size="small"
+                              clickable
+                              variant={active ? 'filled' : 'outlined'}
+                              onClick={() => toggleTag(t)}
+                              sx={{
+                                textTransform: 'none',
+                                backdropFilter: 'blur(2px)',
+                              }}
+                            />
+                          </Tooltip>
+                        );
+                      })}
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+            </Box>
+
+            {/* ---------- Template Grid ---------- */}
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              {filteredCards.length === 0 ? (
+                <Box sx={{ opacity: 0.7, textAlign: 'center', mt: 3 }}>
+                  No templates match your filters.
+                </Box>
+              ) : (
+                <>
+                  <Grid container spacing={3}>
+                    {cardsToDisplay.map(card => {
+                      const entity = card.entity;
+                      const namespace = entity.metadata.namespace ?? 'default';
+                      const kind = (entity.kind ?? 'Template').toLowerCase();
+                      const templateName = entity.metadata.name!;
+                      const entityRef = stringifyEntityRef(entity);
+
+                      const infoRoute = `/catalog/${namespace}/${kind}/${templateName}`;
+                      const chooseRoute = toSelected({
+                        namespace,
+                        kind,
+                        templateName,
+                      });
+
+                      return (
+                        <Grid item xs={12} md={6} key={`${namespace}/${templateName}`}>
+                          <TemplateCard
+                            tag={card.tag}
+                            name={card.name}
+                            section={card.section}
+                            descriptionTop={
+                              entity.metadata.description ?? card.descriptionTop
+                            }
+                            descriptionBottom={card.descriptionBottom}
+                            repoText={(entity.spec as any)?.owner ?? card.repoText}
+                            onStar={() => toggleStarredEntity(entityRef)}
+                            onInfo={() => navigate(infoRoute)}
+                            onChoose={() => navigate(chooseRoute)}
+                            isStarred={isStarredEntity(entityRef)}
+                          />
+                        </Grid>
+                      );
+                    })}
+                  </Grid>
+
+                  {filteredCards.length > 4 && (
+                    <Box sx={{ textAlign: 'center', mt: 2 }}>
+                      <Button
+                        variant="contained"
+                        onClick={() => setIsExpanded(v => !v)}
+                      >
+                        {isExpanded ? 'View Less' : 'View More'}
+                      </Button>
+                    </Box>
+                  )}
+                </>
+              )}
+            </Box>
+          </Box>
+        )}
+      </Content>
+    </Page>
+  );
+}
